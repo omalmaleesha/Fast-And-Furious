@@ -78,10 +78,10 @@ export default function Home() {
     offset: ["start start", "end start"],
   })
 
-  const heroOpacity = useTransform(scrollYProgress, [0, 1], [1, 0])
-  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 1.1])
-  const heroY = useTransform(scrollYProgress, [0, 1], [0, 100])
-
+  const { scrollY } = useScroll();
+  const heroOpacity = useTransform(scrollY, [0, 300], [1, 0]);
+  const heroScale = useTransform(scrollY, [0, 300], [1, 1.2]);
+  const heroY = useTransform(scrollY, [0, 300], [0, 100]);
   // Cast data
   const castMembers = [
     { name: "Dominic Toretto", actor: "Vin Diesel", image: "/placeholder.svg?height=400&width=300" },
@@ -106,83 +106,117 @@ export default function Home() {
     <main className="relative bg-black text-white overflow-hidden">
       {/* Hero Section */}
       <section ref={heroRef} className="relative pb-10 pt-10 flex items-center justify-center overflow-hidden" style={{ transformStyle: 'preserve-3d' }}>
-        <motion.div className="absolute inset-0 z-0" style={{ opacity: heroOpacity, scale: heroScale, y: heroY, z: -100 }}>
-          <div className="absolute inset-0 bg-black/50 z-10" />
+      {/* Background Image */}
+      <motion.div className="absolute inset-0 z-0" style={{ opacity: heroOpacity, scale: heroScale, y: heroY, z: -100 }}>
+        <div className="absolute inset-0 bg-black/50 z-10" />
+        <Image
+          src="/images/back.jpeg?height=1080&width=1920"
+          alt="Fast & Furious"
+          fill
+          className="object-cover"
+          priority
+        />
+      </motion.div>
+
+      {/* Parallax Layer */}
+      <motion.div
+        className="absolute inset-0 z-5"
+        style={{ opacity: heroOpacity * 0.5, y: heroY * 0.5, z: -50 }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/50" />
+      </motion.div>
+
+      {/* Speed Lines */}
+      {[0, 1, 2].map((i) => (
+        <motion.div
+          key={i}
+          className="absolute top-1/2 left-0 h-1 bg-gradient-to-r from-transparent via-[#ff6b00] to-transparent z-5"
+          style={{ width: '100vw', top: `${30 + i * 20}%` }}
+          initial={{ x: '-100vw' }}
+          animate={{ x: '100vw' }}
+          transition={{ duration: 1 + i * 0.5, repeat: Infinity, repeatDelay: 3 + i * 1, delay: 2 }}
+        />
+      ))}
+
+      <div className="container relative z-10 px-4 mx-auto text-center" style={{ transform: 'translateZ(50px)' }}>
+        {/* Logo and Title */}
+        <motion.div
+          initial={{ opacity: 0, rotateY: 90 }}
+          animate={{ opacity: 1, rotateY: 0 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+          style={{ transformStyle: 'preserve-3d' }}
+          className="mb-6 relative"
+        >
           <Image
-            src="/images/back.jpeg?height=1080&width=1920"
-            alt="Fast & Furious"
-            fill
-            className="object-cover"
-            priority
+            src="/images/image1.jpeg?height=50&width=600"
+            alt="Fast & Furious Logo"
+            width={600}
+            height={50}
+            className="mx-auto"
           />
+          <motion.h1
+            ref={textRef}
+            style={{
+              opacity: heroOpacity, // Dynamically fades out on scroll
+              zIndex: 1, // Ensures it appears behind other elements
+              transform: `translateY(${heroY}px)`, // Moves with scroll
+            }}
+            className="absolute top-8 left-1/2 text-6xl font-bold text-black font-['Anton',_sans-serif] -translate-x-1/2 pointer-events-none"
+          >
+            FAST & FURIOUS
+          </motion.h1>
         </motion.div>
 
-        <div className="container relative z-10 px-4 mx-auto text-center" style={{ transform: 'translateZ(50px)' }}>
-        <motion.div
-  initial={{ opacity: 0, rotateY: 90 }}
-  animate={{ opacity: 1, rotateY: 0 }}
-  transition={{ duration: 0.8, delay: 0.2 }}
-  style={{ transformStyle: 'preserve-3d' }}
-  className="mb-6 relative"
->
-  <Image
-    src="/images/image1.jpeg?height=50&width=600"
-    alt="Fast & Furious Logo"
-    width={600}
-    height={50}
-    className="mx-auto"
-  />
-  <motion.h1
-    ref={textRef}
-    style={{
-      opacity: heroOpacity, // Fades out on scroll
-      zIndex: -1, // Ensures it appears behind other elements
-    }}
-    className="absolute top-2/3 left-1/2 text-6xl font-bold text-white -translate-x-1/2 mix-blend-difference pointer-events-none"
-  >
-    FAST & FURIOUS
-  </motion.h1>
-</motion.div>
-
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="text-2xl md:text-4xl font-bold mb-8 text-[#ff6b00] font-['Anton',_sans-serif] text-center"
-            style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}
-          >
-            RIDE OR DIE. THE SAGA CONTINUES.
-          </motion.h2>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.6 }}
-          >
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="flex justify-center items-center"
+        {/* Staggered Subtitle */}
+        <motion.h2
+          className="text-2xl md:text-4xl font-bold mb-8 text-[#ff6b00] font-['Anton',_sans-serif] text-center"
+          style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}
+        >
+          {["RIDE", "OR", "DIE.", "THE", "SAGA", "CONTINUES."].map((word, index) => (
+            <motion.span
+              key={index}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 + index * 0.1 }}
             >
-              <Button
-                size="lg"
-                className="bg-[#ff6b00] hover:bg-[#ff8c00] text-black font-bold rounded-none px-8 py-6 text-lg shadow-md"
-              >
-                <Play className="mr-2 h-5 w-5" /> WATCH NOW
-              </Button>
-            </motion.div>
-          </motion.div>
+              {word}{" "}
+            </motion.span>
+          ))}
+        </motion.h2>
 
+        {/* Button with Pulsing Effect */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.6 }}
+        >
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 1, delay: 1.5 }}
-            className="absolute bottom-10 left-1/2 transform -translate-x-1/2 flex justify-center items-center"
+            animate={{ scale: [1, 1.02, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex justify-center items-center"
           >
-            <ChevronDown className="h-10 w-10 animate-bounce text-[#ff6b00]" />
+            <Button
+              size="lg"
+              className="bg-[#ff6b00] hover:bg-[#ff8c00] text-black font-bold rounded-none px-8 py-6 text-lg shadow-md"
+            >
+              <Play className="mr-2 h-5 w-5" /> WATCH NOW
+            </Button>
           </motion.div>
-        </div>
-      </section>
+        </motion.div>
+
+        {/* Bobbing Scroll Indicator */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1, y: [0, -10, 0] }}
+          transition={{ duration: 1, delay: 1.5, repeat: Infinity, repeatType: "loop" }}
+          className="absolute bottom-10 left-1/2 transform -translate-x-1/2 flex justify-center items-center"
+        >
+          <ChevronDown className="h-10 w-10 text-[#ff6b00]" />
+        </motion.div>
+      </div>
+    </section>
 
       {/* Text Zoom Reveal Section */}
       <TextZoomReveal />
