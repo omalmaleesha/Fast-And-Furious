@@ -24,6 +24,7 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [touchProgress, setTouchProgress] = useState(0)
   const [showControls, setShowControls] = useState(true)
+  const [isScrolling, setIsScrolling] = useState(false) // New state to track scrolling
 
   // Timeline chapters for the video
   const chapters = [
@@ -56,46 +57,71 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
   const titleOpacity = useTransform(scrollYProgress, [0, 0.1, 0.3], [1, 1, 0])
   const instructionOpacity = useTransform(scrollYProgress, [0, 0.1, 0.2], [1, 1, 0])
 
+  // Detect scroll stop and play video
+  useEffect(() => {
+    if (!videoRef.current || !sectionRef.current || isMobile) return
+
+    const video = videoRef.current
+    let scrollTimeout: NodeJS.Timeout
+
+    const handleScrollStop = () => {
+      clearTimeout(scrollTimeout)
+      setIsScrolling(true)
+
+      scrollTimeout = setTimeout(() => {
+        setIsScrolling(false)
+        if (!isPlaying) {
+          setIsPlaying(true)
+          video.play().catch((err) => console.error("Video play error:", err))
+        }
+      }, 300) // 300ms delay to detect scroll stop
+    }
+
+    const unsubscribe = scrollYProgress.onChange((value) => {
+      if (!video.duration || isPlaying) return
+      video.currentTime = video.duration * value
+      setProgress(value * 100)
+      updateCurrentChapter(value)
+      handleScrollStop()
+    })
+
+    // Pause video when scrolling resumes
+    const handleScrollStart = () => {
+      if (isPlaying && !isMobile) {
+        video.pause()
+        setIsPlaying(false)
+      }
+    }
+
+    window.addEventListener("scroll", handleScrollStart)
+
+    return () => {
+      clearTimeout(scrollTimeout)
+      unsubscribe()
+      window.removeEventListener("scroll", handleScrollStart)
+    }
+  }, [scrollYProgress, isMobile, isPlaying])
+
+  // Handle video metadata loading
   useEffect(() => {
     if (!videoRef.current || !sectionRef.current) return
 
     const video = videoRef.current
 
-    // When video metadata is loaded, we can access duration
     const handleVideoLoaded = () => {
       setIsLoaded(true)
     }
 
-    // If video is already loaded
     if (video.readyState >= 2) {
       setIsLoaded(true)
     } else {
       video.addEventListener("loadeddata", handleVideoLoaded)
     }
 
-    // For desktop: Update video time based on scroll position
-    if (!isMobile) {
-      const unsubscribe = scrollYProgress.onChange((value) => {
-        if (video.duration) {
-          // Set video time based on scroll progress
-          video.currentTime = video.duration * value
-          setProgress(value * 100)
-
-          // Update current chapter based on progress
-          updateCurrentChapter(value)
-        }
-      })
-
-      return () => {
-        video.removeEventListener("loadeddata", handleVideoLoaded)
-        unsubscribe()
-      }
-    }
-
     return () => {
       video.removeEventListener("loadeddata", handleVideoLoaded)
     }
-  }, [scrollYProgress, isMobile])
+  }, [])
 
   // Update current chapter based on progress
   const updateCurrentChapter = (value: number) => {
@@ -113,7 +139,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
 
     const video = videoRef.current
 
-    // Auto-hide controls after 3 seconds of inactivity
     let timeout: NodeJS.Timeout
     const resetControlsTimeout = () => {
       clearTimeout(timeout)
@@ -125,14 +150,11 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
       }, 3000)
     }
 
-    // Set up event listeners for mobile
     const handleTouchStart = () => {
       resetControlsTimeout()
     }
 
-    // Play/pause on video tap
     const handleVideoTap = (e: MouseEvent) => {
-      // Don't trigger if tapping on a control
       if ((e.target as HTMLElement).closest(".video-controls")) return
 
       if (isPlaying) {
@@ -145,7 +167,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
       }
     }
 
-    // Update progress during playback
     const handleTimeUpdate = () => {
       if (video.duration) {
         const newProgress = (video.currentTime / video.duration) * 100
@@ -155,7 +176,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
       }
     }
 
-    // Handle video end
     const handleVideoEnd = () => {
       setIsPlaying(false)
       setShowControls(true)
@@ -193,14 +213,12 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
     const scrubberRect = scrubberRef.current.getBoundingClientRect()
     const scrubberStart = scrubberRect.left
 
-    // Calculate progress (0-1)
     let newProgress = (newX - scrubberStart) / scrubberWidth
     newProgress = Math.max(0, Math.min(1, newProgress))
 
     setTouchProgress(newProgress)
     setProgress(newProgress * 100)
 
-    // Update video time
     if (videoRef.current.duration) {
       videoRef.current.currentTime = videoRef.current.duration * newProgress
       updateCurrentChapter(newProgress)
@@ -259,8 +277,8 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
   // Ensure the section is tall enough for a good scroll experience on desktop
   useEffect(() => {
     if (sectionRef.current && !isMobile) {
-      const viewportHeight = window.innerHeight
-      sectionRef.current.style.height = `${viewportHeight * 3}px` // 3x viewport height for smooth scrolling
+      const viewportHeight = window.innerHeight;
+      sectionRef.current.style.height = `${viewportHeight}px`; // Set height to 1x viewport height
     }
   }, [isMobile])
 
@@ -269,14 +287,12 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
       ref={sectionRef}
       className={cn(
         "relative bg-black overflow-hidden",
-        isMobile ? "h-screen" : "", // Fixed height on mobile
+        isMobile ? "h-screen" : "",
         className,
       )}
       aria-label="Video timeline of Fast & Furious franchise"
     >
-      {/* Fixed video container */}
       <div className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden">
-        {/* Video background with scaling effect */}
         <motion.div
           className="relative w-full h-full"
           style={{
@@ -284,34 +300,32 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
             scale: isMobile ? 1 : scale,
           }}
         >
-          {/* Video element */}
           <video
             ref={videoRef}
             className="w-full h-full object-cover"
-            src="/placeholder.mp4" // This would be your actual video file
-            muted={!isMobile} // Only muted on desktop (scroll version)
+            src="/video3.mp4"
+            muted={!isMobile}
             playsInline
             preload="auto"
-            poster="/placeholder.svg?height=1080&width=1920" // Placeholder image while loading
+            poster="/placeholder.svg?height=1080&width=1920"
           />
 
-          {/* Dark overlay */}
           <div className="absolute inset-0 bg-black/50" />
 
-          {/* Loading indicator */}
           {!isLoaded && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
               <div className="flex flex-col items-center">
-                <div className="w-16 h-16 border-4 border-[#ff6b00] border-t-transparent rounded-full animate-spin mb-4" />
+                <div className="w-16 h-16 border-4 border-[#ff6b00] border-t-transparent rounded-full animate-spin mb-1" />
                 <p className="text-white text-lg">Loading video...</p>
               </div>
             </div>
           )}
 
-          {/* Desktop title overlay */}
           {!isMobile && (
             <motion.div
-              className="absolute inset-0 flex flex-col items-center justify-center z-10 px-4"
+              className="absolute inset-0 flex flex-col
+
+ items-center justify-center z-10 px-4"
               style={{ opacity: titleOpacity }}
             >
               <h2 className="text-4xl md:text-6xl font-bold text-white mb-6 text-center font-['Anton',_sans-serif] tracking-tight">
@@ -321,7 +335,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
                 Scroll to experience the evolution of the Fast Saga through the years
               </p>
 
-              {/* Scroll instruction */}
               <motion.div
                 className="absolute bottom-20 flex flex-col items-center"
                 style={{ opacity: instructionOpacity }}
@@ -334,7 +347,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
             </motion.div>
           )}
 
-          {/* Mobile title overlay (shown when not playing) */}
           {isMobile && !isPlaying && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-10 px-4 bg-black/60">
               <h2 className="text-3xl font-bold text-white mb-4 text-center font-['Anton',_sans-serif] tracking-tight">
@@ -353,7 +365,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
             </div>
           )}
 
-          {/* Mobile video controls */}
           {isMobile && isLoaded && (
             <div
               className={cn(
@@ -362,13 +373,11 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
               )}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Chapter title */}
               <div className="mb-4">
                 <h3 className="text-[#ff6b00] font-bold text-lg">{chapters[currentChapter].title}</h3>
                 <p className="text-white/90 text-sm">{chapters[currentChapter].year}</p>
               </div>
 
-              {/* Progress bar/scrubber */}
               <div
                 ref={scrubberRef}
                 className="relative h-8 mb-4 touch-none"
@@ -377,12 +386,9 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
                   dragControls.start(e, { snapToCursor: true })
                 }}
               >
-                {/* Background track */}
                 <div className="absolute top-1/2 left-0 right-0 h-1 -translate-y-1/2 bg-white/20 rounded-full">
-                  {/* Filled track */}
                   <div className="h-full bg-[#ff6b00] rounded-full" style={{ width: `${progress}%` }} />
 
-                  {/* Chapter markers */}
                   {chapters.map((chapter) => (
                     <div
                       key={chapter.id}
@@ -395,7 +401,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
                   ))}
                 </div>
 
-                {/* Draggable thumb */}
                 <motion.div
                   className="absolute top-1/2 -translate-y-1/2 w-6 h-6 bg-[#ff6b00] rounded-full shadow-lg transform -translate-x-1/2 touch-none"
                   style={{ left: `${progress}%` }}
@@ -410,7 +415,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
                 />
               </div>
 
-              {/* Control buttons */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <Button
@@ -459,16 +463,13 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
                   </Button>
                 </div>
 
-                {/* Time indicator */}
                 <div className="text-white/80 text-sm">{chapters[currentChapter].year}</div>
               </div>
             </div>
           )}
 
-          {/* Desktop scene descriptions that appear at specific scroll points */}
           {!isMobile && (
             <div className="absolute inset-0 pointer-events-none">
-              {/* Scene 1 */}
               <motion.div
                 className="absolute top-1/4 left-8 max-w-xs bg-black/70 backdrop-blur-sm p-3 rounded border-l-2 border-[#ff6b00]"
                 style={{ opacity: [0, 1, 0] }}
@@ -477,7 +478,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
                 <p className="text-white/90 text-sm">Street racing in Los Angeles where it all started</p>
               </motion.div>
 
-              {/* Scene 2 */}
               <motion.div
                 className="absolute top-1/3 right-8 max-w-xs bg-black/70 backdrop-blur-sm p-3 rounded border-l-2 border-[#ff6b00]"
                 style={{ opacity: [0, 1, 0] }}
@@ -486,7 +486,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
                 <p className="text-white/90 text-sm">The art of drifting changes everything</p>
               </motion.div>
 
-              {/* Scene 3 */}
               <motion.div
                 className="absolute top-1/2 left-8 max-w-xs bg-black/70 backdrop-blur-sm p-3 rounded border-l-2 border-[#ff6b00]"
                 style={{ opacity: [0, 1, 0] }}
@@ -495,7 +494,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
                 <p className="text-white/90 text-sm">From street racers to a family of elite drivers</p>
               </motion.div>
 
-              {/* Scene 4 */}
               <motion.div
                 className="absolute bottom-1/3 right-8 max-w-xs bg-black/70 backdrop-blur-sm p-3 rounded border-l-2 border-[#ff6b00]"
                 style={{ opacity: [0, 1, 0] }}
@@ -506,7 +504,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
                 </p>
               </motion.div>
 
-              {/* Scene 5 */}
               <motion.div
                 className="absolute bottom-1/4 left-8 max-w-xs bg-black/70 backdrop-blur-sm p-3 rounded border-l-2 border-[#ff6b00]"
                 style={{ opacity: [0, 1, 0] }}
@@ -517,7 +514,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
             </div>
           )}
 
-          {/* Mobile chapter selection (when not playing) */}
           {isMobile && !isPlaying && isLoaded && (
             <div className="absolute bottom-8 left-0 right-0 px-4 z-20">
               <div className="flex overflow-x-auto pb-4 gap-2 snap-x">
@@ -545,7 +541,6 @@ export default function ScrollVideo({ className }: ScrollVideoProps) {
         </motion.div>
       </div>
 
-      {/* Cinematic letterbox bars for extra effect (desktop only) */}
       {!isMobile && (
         <>
           <div className="fixed top-0 left-0 right-0 h-[5vh] bg-black z-20 pointer-events-none" />
